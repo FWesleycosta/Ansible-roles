@@ -1,0 +1,259 @@
+---
+- name: Find all files in the directory /var/log
+  ansible.builtin.find:
+    path:
+      - /var/log
+  register: files
+
+- name: Change permission of the files in directory /var/log
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "{{ '0750' if item.isdir else '0640' }}"
+  with_items: "{{ files.files }}"
+  become: true
+
+- name: Ensure the sudoers file contains the correct configuration
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    insertafter: '^# See sudoers(5) for more
+                 information on "@include" directives:'
+    line: '%wheel ALL=(ALL) ALL'
+    validate: 'visudo -cf %s'
+    state: present
+    create: false
+
+- name: Configure sshd_config file to disable root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin no'
+    state: present
+    create: false
+
+- name: Hardening SSH configuration
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  become: true
+  with_items:
+    - regexp: '^PermitRootLogin'
+      line: 'PermitRootLogin no'
+    - regexp: '^PasswordAuthentication'
+      line: 'PasswordAuthentication yes'
+    - regexp: '^PermitEmptyPasswords'
+      line: 'PermitEmptyPasswords no'
+    - regexp: '^PermitUserEnvironment'
+      line: 'PermitUserEnvironment no'
+    - regexp: '^AllowAgentForwarding'
+      line: 'AllowAgentForwarding no'
+    - regexp: '^AllowTcpForwarding'
+      line: 'AllowTcpForwarding no'
+    - regexp: '^X11Forwarding'
+      line: 'X11Forwarding no'
+    - regexp: '^ClientAliveInterval'
+      line: 'ClientAliveInterval 300'
+    - regexp: '^ClientAliveCountMax'
+      line: 'ClientAliveCountMax 0'
+    - regexp: '^LoginGraceTime'
+      line: 'LoginGraceTime 60'
+    - regexp: '^MaxAuthTries'
+      line: 'MaxAuthTries 3'
+    - regexp: '^MaxSessions'
+      line: 'MaxSessions 2'
+    - regexp: '^TCPKeepAlive'
+      line: 'TCPKeepAlive no'
+    - regexp: '^Protocol'
+      line: 'Protocol 2'
+
+- name: Create system-auth file
+  ansible.builtin.copy:
+    dest: /etc/pam.d/system-auth
+    content: |
+      auth required pam_deny.so
+      account required pam_unix.so
+      password required pam_unix.so minlen=15
+    owner: root
+    group: root
+    mode: 0644
+  become: true
+
+- name: Configure password policy
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^password\s+required\s+pam_unix.so'
+    line: 'password required pam_unix.so minlen=15 remember=5 maxdays=30 warn=7'
+    state: present
+  become: true
+
+- name: Create /etc/audit/rules.d directory
+  ansible.builtin.file:
+    path: /etc/audit/rules.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0750'
+
+- name: Configure auditd rules
+  ansible.builtin.copy:
+    dest: /etc/audit/rules.d/audit.rules
+    content: |
+      -a always,exit -F arch=b64 -S adjtimex
+      -S settimeofday -k time-change
+      -a always,exit -F arch=b32 -S adjtimex
+      -S settimeofday -S stime -k time-change
+      -a always,exit -F arch=b64
+      -S clock_settime -k time-change
+      -a always,exit -F arch=b32
+      -S clock_settime -k time-change
+      -w /etc/group -p wa -k identity
+      -w /etc/passwd -p wa -k identity
+      -w /etc/gshadow -p wa -k identity
+      -w /etc/shadow -p wa -k identity
+      -w /etc/security/opasswd -p wa -k identity
+      -a always,exit -F arch=b64 -S sethostname
+      -S setdomainname -k system-locale
+      -a always,exit -F arch=b32 -S sethostname
+      -S setdomainname -k system-locale
+      -w /etc/selinux/ -p wa -k MAC-policy
+      -a always,exit -F arch=b64 -S setrlimit
+      -S setrlimit -S setrlimit -k MAC-policy
+      -a always,exit -F arch=b32 -S setrlimit
+      -S setrlimit -S setrlimit -k MAC-policy
+      -w /etc/selinux/ -p wa -k MAC-policy
+      -w /var/log/faillog -p wa -k logins
+      -w /var/log/lastlog -p wa -k logins
+      -w /var/log/tallylog -p wa -k logins
+      -w /var/run/faillock/ -p wa -k logins
+      -w /var/log/btmp -p wa -k logins
+      -w /var/log/wtmp -p wa -k logins
+      -w /var/log/lastlog -p wa -k logins
+      -w /var/log/faillog -p wa -k logins
+      -w /var/run/faillock/ -p wa -k logins
+      -w /var/log/tallylog -p wa -k logins
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set permissions on sensitive files and directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+  with_items:
+    - {path: '/etc/shadow', mode: '0400', owner: 'root', group: 'root'}
+    - {path: '/etc/sudoers', mode: '0440', owner: 'root', group: 'root'}
+    - {path: '/etc/passwd', mode: '0644', owner: 'root', group: 'root'}
+    - {path: '/etc/group', mode: '0644', owner: 'root', group: 'root'}
+
+- name: Configure /etc/sysctl.conf
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  become: true
+  with_items:
+    - regexp: '^net.ipv4.conf.all.accept_redirects'
+      line: 'net.ipv4.conf.all.accept_redirects = 0'
+    - regexp: '^net.ipv4.conf.all.secure_redirects'
+      line: 'net.ipv4.conf.all.secure_redirects = 0'
+    - regexp: '^net.ipv4.conf.all.send_redirects'
+      line: 'net.ipv4.conf.all.send_redirects = 0'
+    - regexp: '^net.ipv4.conf.default.accept_source_route'
+      line: 'net.ipv4.conf.default.accept_source_route = 0'
+    - regexp: '^net.ipv4.conf.all.log_martians'
+      line: 'net.ipv4.conf.all.log_martians = 1'
+    - regexp: '^net.ipv4.conf.default.log_martians'
+      line: 'net.ipv4.conf.default.log_martians = 1'
+    - regexp: '^net.ipv4.icmp_ignore_bogus_error_responses'
+      line: 'net.ipv4.icmp_ignore_bogus_error_responses = 1'
+    - regexp: '^net.ipv4.icmp_echo_ignore_broadcasts'
+      line: 'net.ipv4.icmp_echo_ignore_broadcasts = 1'
+    - regexp: '^net.ipv4.icmp_echo_ignore_all'
+      line: 'net.ipv4.icmp_echo_ignore_all = 1'
+    - regexp: '^net.ipv4.tcp_syncookies'
+      line: 'net.ipv4.tcp_syncookies = 1'
+    - regexp: '^net.ipv6.conf.all.accept_ra'
+      line: 'net.ipv6.conf.all.accept_ra = 0'
+    - regexp: '^net.ipv6.conf.all.rp_filter'
+      line: 'net.ipv6.conf.all.rp_filter = 1'
+    - regexp: '^net.ipv6.conf.all.disable_ipv6'
+      line: 'net.ipv6.conf.all.disable_ipv6 = 1'
+    - regexp: '^net.ipv4.conf.all.accept_source_route'
+      line: 'net.ipv4.conf.all.accept_source_route = 0'
+
+- name: Disable USB storage
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/blacklist.conf
+    content: 'blacklist usb-storage'
+    owner: root
+    group: root
+    mode: 0644
+  become: true
+
+- name: Ensure unattended-upgrades is installed
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+    update_cache: true
+
+- name: Enable automatic security updates
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Install Fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    update_cache: true
+
+- name: Configure Fail2ban
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [sshd]
+      enabled = true
+      port = ssh
+      logpath = /var/log/auth.log
+      maxretry = 3
+    owner: root
+    group: root
+    mode: 0644
+  notify: Restart Fail2ban service
+
+- name: Set TMOUT for terminal session timeout
+  ansible.builtin.lineinfile:
+    path: /etc/profile
+    line: 'export TMOUT=300'
+    state: present
+  become: true
+
+- name: Ensure rsyslog is installed and configured
+  ansible.builtin.apt:
+    name: rsyslog
+    state: present
+    update_cache: true
+
+- name: Configure rsyslog to forward logs to a remote server
+  ansible.builtin.lineinfile:
+    path: /etc/rsyslog.conf
+    line: '*.* @@logserver.example.com:514'
+    state: present
+
+- name: Configure PAM to lock user accounts after 5 failed login attempts
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    regexp: '^auth required pam_tally2.so'
+    line: 'auth required pam_tally2.so deny=5 onerr=fail unlock_time=600'
+    state: present
+  become: true
+  notify: Reboot the machine about the upgrade

@@ -1,0 +1,93 @@
+---
+- name: "Update and Upgrade"
+  apt:
+    update_cache: yes
+    upgrade: dist
+    cache_valid_time: 3600
+
+- name: "Install Required Packages"
+  apt:
+    name: "{{ packages }}"
+    update_cache: true
+    state: present
+  vars:
+    packages:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - software-properties-common
+
+- name: "Check if Docker is installed"
+  ansible.builtin.command: docker --version
+  register: docker_check
+  ignore_errors: true
+  changed_when: false
+
+- name: "Download Docker installation script"
+  ansible.builtin.shell: |
+    curl -fsSL get.docker.com -o get-docker.sh
+  args:
+    executable: /bin/bash
+  when: docker_check.rc != 0
+
+- name: "Execute Docker installation script"
+  ansible.builtin.shell: |
+    sh get-docker.sh
+  args:
+    executable: /bin/bash
+  when: docker_check.rc != 0
+
+- name: "Add Docker group"
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: "Add user to Docker group"
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+- name: "Create Directories for Docker Configurations"
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - { 'path': '/etc/docker' }
+
+- name: "Add Configuration for Docker Daemon"
+  template:
+    src: templates/docker-daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Add Log Rotation Configuration for Docker Containers"
+  template:
+    src: templates/docker-logrotate.conf.j2
+    dest: /etc/logrotate.d/docker
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Install Required Packages"
+  apt:
+    name: "{{ packages }}"
+    update_cache: true
+    state: present
+  vars:
+    packages:
+      - docker-compose
+
+- name: "Enable and start Docker services"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - docker.service
+    - containerd.service

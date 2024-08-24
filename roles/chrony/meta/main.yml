@@ -1,0 +1,27 @@
+---
+galaxy_info:
+  author: Wesley Costa
+  description: >
+    A role to install and configure chrony for time synchronization,
+    set the timezone, and ensure the service is running properly
+    with correct settings.
+  company: Example, Inc.
+  license: MIT
+  min_ansible_version: 2.9
+  galaxy_tags:
+    - chrony
+    - time
+    - synchronization
+    - timezone
+    - systemd
+  platforms:
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+        - jammy
+  categories:
+    - System
+    - Monitoring
+    - Time
+  dependencies: []

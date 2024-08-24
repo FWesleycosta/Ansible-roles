@@ -1,0 +1,32 @@
+---
+- name: Test chrony role
+  hosts: all
+  tasks:
+    - name: Check if chrony is installed
+      ansible.builtin.shell: dpkg -l | grep chrony
+      register: chrony_installed
+      failed_when: chrony_installed.rc != 0
+
+    - name: Check if the timezone is set to America/Sao_Paulo
+      ansible.builtin.shell: timedatectl | grep 'America/Sao_Paulo'
+      register: timezone_check
+      failed_when: "'America/Sao_Paulo' not in timezone_check.stdout"
+
+    - name: Check if chrony is running and enabled
+      ansible.builtin.systemd:
+        name: chrony
+        state: started
+        enabled: true
+      register: chrony_service_status
+      failed_when:
+        - chrony_service_status.status['ActiveState'] != 'active'
+        - chrony_service_status.status['UnitFileState'] != 'enabled'
+
+    - name: Return message if all checks passed
+      ansible.builtin.debug:
+        msg: "All checks passed successfully!"
+      when:
+        - chrony_installed.rc == 0
+        - "'America/Sao_Paulo' in timezone_check.stdout"
+        - chrony_service_status.status['UnitFileState'] == 'enabled'
+        - chrony_service_status.status['ActiveState'] == 'active'

@@ -1,0 +1,21 @@
+---
+galaxy_info:
+  author: Wesley Costa
+  description: This role installs Docker and Docker-compose on Linux.
+  company: Example, Inc.
+  license: MIT
+  min_ansible_version: 2.9
+  galaxy_tags:
+    - linux
+    - docker
+    - docker-compose
+    - logrotate
+  platforms:
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+        - jammy
+  categories:
+    - System
+  dependencies: []

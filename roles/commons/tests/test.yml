@@ -1,0 +1,51 @@
+---
+- name: Test Role Verify Configuration
+  hosts: all
+  become: true
+  tasks:
+    - name: Check if sudo package is installed
+      ansible.builtin.command: dpkg -l | grep sudo
+      register: sudo_check
+      failed_when: sudo_check.rc != 0
+      changed_when: false
+
+    - name: Check if the user is added to the sudo group
+      ansible.builtin.command: groups {{ ansible_user }} | grep sudo
+      register: sudo_user_check
+      failed_when: sudo_user_check.rc != 0
+      changed_when: false
+
+    - name: Verify if required packages are installed
+      ansible.builtin.command: >
+        dpkg -l | grep -E 'git|curl|vim|openssh-server|python3-minimal|wget|\
+        python3-pip|auditd'
+      register: package_check
+      failed_when: package_check.rc != 0
+      changed_when: false
+
+    - name: Verify if the sudoers group 'wheel' is present
+      ansible.builtin.command: getent group wheel
+      register: wheel_group_check
+      failed_when: wheel_group_check.rc != 0
+      changed_when: false
+
+    - name: Verify if the MOTD is set correctly
+      ansible.builtin.command: cat /etc/motd
+      register: motd_check
+      failed_when: >
+        'ACESSO PERMITIDO SOMENTE A PESSOAS AUTORIZADAS' not in \
+        motd_check.stdout
+      changed_when: false
+
+    - name: Verify if apt cache is updated
+      ansible.builtin.command: grep -r \
+        "APT::Periodic::Update-Package-Lists \"1\";" /etc/apt/
+      register: apt_cache_check
+      failed_when: apt_cache_check.rc != 0
+      changed_when: false
+
+    - name: Verify if unnecessary packages are auto-removed
+      ansible.builtin.command: apt-get autoremove --dry-run
+      register: autoremove_check
+      failed_when: autoremove_check.rc != 0
+      changed_when: false

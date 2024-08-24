@@ -1,0 +1,17 @@
+---
+- name: Reboot the server
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+    test_command: uptime
+  async: 1
+  poll: 0
+  ignore_errors: true
+  register: reboot
+
+- name: Wait for the server to be back online
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 600
+  retries: 30
+  delay: 10
+  until: reboot is succeeded

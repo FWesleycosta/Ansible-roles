@@ -1,0 +1,101 @@
+---
+- name: "Test Playbook - Validate Docker Installation and Configuration"
+  hosts: all
+  become: true
+
+  tasks:
+    - name: "Check if system is updated and upgraded"
+      ansible.builtin.command: apt-get -qq dist-upgrade
+      register: apt_upgrade_check
+      changed_when: false
+
+    - name: "Assert that the system is updated and upgraded"
+      ansible.builtin.assert:
+        that:
+          - apt_upgrade_check.rc == 0
+
+    - name: "Check if required packages are installed"
+      ansible.builtin.shell: dpkg -l | grep -E 'apt-transport-https|ca-certificates|curl|gnupg|lsb-release|software-properties-common'
+      register: package_check
+      changed_when: false
+
+    - name: "Assert that required packages are installed"
+      ansible.builtin.assert:
+        that:
+          - package_check.rc == 0
+
+    - name: "Check if Docker is installed"
+      ansible.builtin.command: docker --version
+      register: docker_version_check
+      changed_when: false
+
+    - name: "Assert that Docker is installed"
+      ansible.builtin.assert:
+        that:
+          - docker_version_check.rc == 0
+
+    - name: "Check if Docker group exists"
+      ansible.builtin.command: getent group docker
+      register: docker_group_check
+      changed_when: false
+
+    - name: "Assert that Docker group exists"
+      ansible.builtin.assert:
+        that:
+          - docker_group_check.rc == 0
+
+    - name: "Check if the user is in the Docker group"
+      ansible.builtin.shell: id -nG {{ ansible_user }} | grep -w docker
+      register: user_in_docker_group
+      changed_when: false
+
+    - name: "Assert that the user is in the Docker group"
+      ansible.builtin.assert:
+        that:
+          - user_in_docker_group.rc == 0
+
+    - name: "Check if Docker configuration directory exists"
+      ansible.builtin.stat:
+        path: /etc/docker
+      register: docker_dir_check
+
+    - name: "Assert that Docker configuration directory exists"
+      ansible.builtin.assert:
+        that:
+          - docker_dir_check.stat.exists
+
+    - name: "Check if Docker daemon.json is correctly configured"
+      ansible.builtin.stat:
+        path: /etc/docker/daemon.json
+      register: daemon_config_check
+
+    - name: "Assert that Docker daemon.json is correctly configured"
+      ansible.builtin.assert:
+        that:
+          - daemon_config_check.stat.exists
+
+    - name: "Check if logrotate configuration for Docker exists"
+      ansible.builtin.stat:
+        path: /etc/logrotate.d/docker
+      register: logrotate_config_check
+
+    - name: "Assert that logrotate configuration for Docker exists"
+      ansible.builtin.assert:
+        that:
+          - logrotate_config_check.stat.exists
+
+    - name: "Check if Docker services are running"
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - docker.service
+        - containerd.service
+      register: docker_services_check
+
+    - name: "Assert that Docker services are running"
+      ansible.builtin.assert:
+        that:
+          - "'docker.service' in docker_services_check.results[0].name"
+          - "'containerd.service' in docker_services_check.results[1].name"
