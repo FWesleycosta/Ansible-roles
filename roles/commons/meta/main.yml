@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  author: Wesley Costa
+  description: Role to harden the security of a Linux server by installing
+               essential packages, configuring sudoers, setting up security
+               measures, and providing a custom MOTD.
+  company: Example, Inc.
+  license: MIT
+  min_ansible_version: 2.9
+  galaxy_tags:
+    - linux
+    - sudo
+    - motd
+    - packages
+  platforms:
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+        - jammy
+  categories:
+    - System
+  dependencies: []

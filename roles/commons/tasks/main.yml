@@ -1,0 +1,68 @@
+---
+- name: Install sudoers package
+  ansible.builtin.apt:
+    name: sudo
+    state: present
+    update_cache: true
+
+- name: Add user to sudoers
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: sudo
+    append: true
+
+- name: Install package required
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  with_items:
+    - git
+    - curl
+    - vim
+    - openssh-server
+    - python3-minimal
+    - wget
+    - python3-pip
+    - auditd
+
+- name: Update the package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade all packages to the latest version, including phased updates
+  ansible.builtin.command:
+    cmd: apt-get upgrade -y -o APT::Get::Always-Include-Phased-Updates=true
+
+- name: Auto remove unnecessary packages
+  ansible.builtin.apt:
+    autoclean: true
+    autoremove: true
+
+- name: Create group to manage the sudoers
+  ansible.builtin.group:
+    name: wheel
+    state: present
+    system: true
+
+- name: Add custom MOTD
+  ansible.builtin.copy:
+    dest: /etc/motd
+    content: |
+      ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+      +                                                                    +
+      +                          ###      ###                              +
+      +                                                                    +
+      +             ACESSO PERMITIDO SOMENTE A PESSOAS AUTORIZADAS         +
+      +   TODAS AS CONEXOES ESTAO SENDO LOGADAS, MONITORADAS E AUDITADAS   +
+      +               ATTENTION: AUTHORIZED PERSONNEL ONLY.                +
+      +                 IF YOU ARE NOT AUTHORIZED PERSONNEL                +
+      +                     DISCONNECT IMMEDIATELY.                        +
+      +                                                                    +
+      ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    owner: root
+    group: root
+    mode: 0644
+  become: true
+  notify: Reboot the server

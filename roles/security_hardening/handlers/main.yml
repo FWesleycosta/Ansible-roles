@@ -1,0 +1,16 @@
+---
+- name: Reboot the machine about the upgrade
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+    connect_timeout: 600
+    msg: "Rebooting the machine to apply the upgrade"
+    post_reboot_delay: 60
+    pre_reboot_delay: 30
+    test_command: uptime
+  register: reboot
+
+- name: Restart Fail2ban service
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: restarted
+    enabled: true

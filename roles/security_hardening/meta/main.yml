@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: Wesley Costa
+  description: Role to harden the security of a Linux server
+  company: Example, Inc.
+  license: MIT
+  min_ansible_version: 2.9
+  galaxy_tags:
+    - security
+    - security_hardening
+    - linux
+  platforms:
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+  categories:
+    - Security
+  dependencies: []

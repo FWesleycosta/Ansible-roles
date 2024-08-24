@@ -1,0 +1,6 @@
+# Directory Idea files
+.idea/
+.DS_Store
+.scannerwork
+sonar-project.properties
+secrets.yml

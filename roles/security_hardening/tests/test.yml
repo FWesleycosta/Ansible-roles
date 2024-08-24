@@ -1,0 +1,76 @@
+---
+- name: Test security security_hardening role
+  hosts: all
+  become: true
+  tasks:
+    - name: Check sudoers file for correct configuration
+      ansible.builtin.command: visudo -cf /etc/sudoers
+      register: sudoers_check
+      failed_when: sudoers_check.rc != 0
+
+    - name: Verify SSH configuration for disabling root login
+      ansible.builtin.command: grep "^PermitRootLogin no" /etc/ssh/sshd_config
+      register: ssh_root_login_check
+      failed_when: ssh_root_login_check.rc != 0
+
+    - name: Verify SSH security_hardening settings
+      ansible.builtin.shell: |
+        grep "^PasswordAuthentication yes" /etc/ssh/sshd_config && \
+        grep "^PermitEmptyPasswords no" /etc/ssh/sshd_config && \
+        grep "^ClientAliveInterval 300" /etc/ssh/sshd_config
+      register: ssh_hardening_check
+      failed_when: ssh_hardening_check.rc != 0
+
+    - name: Check PAM configuration for password policy
+      ansible.builtin.command: >
+        grep "^password required pam_unix.so" /etc/pam.d/system-auth
+      register: pam_password_policy_check
+      failed_when: >
+        'minlen=15 remember=5 maxdays=30 warn=7'
+        not in pam_password_policy_check.stdout
+
+    - name: Check if auditd rules are applied correctly
+      ansible.builtin.command: >-
+        grep -q -E '(-w /etc/group -p wa -k identity|-a always,exit \
+        -F arch=b64 -S adjtimex)' \
+        /etc/audit/rules.d/audit.rules
+      register: auditd_rules_check
+      failed_when: auditd_rules_check.rc != 0
+
+    - name: Verify sysctl settings
+      ansible.builtin.shell: |
+        sysctl -a | grep "net.ipv4.conf.all.accept_redirects = 0"
+      register: sysctl_check
+      failed_when: sysctl_check.rc != 0
+
+    - name: Verify Fail2ban configuration
+      ansible.builtin.shell: fail2ban-client status sshd
+      register: fail2ban_status_check
+      failed_when:
+        - fail2ban_status_check.rc != 0
+        - "'Status for the jail: sshd' not in fail2ban_status_check.stdout"
+
+    - name: Verify rsyslog configuration for remote logging
+      ansible.builtin.shell: grep '*.* @@logserver.example.com:514' \
+        /etc/rsyslog.conf
+      register: rsyslog_remote_check
+      failed_when: rsyslog_remote_check.rc != 0
+
+    - name: Ensure TMOUT environment variable is set
+      ansible.builtin.shell: grep 'TMOUT=300' /etc/profile
+      register: tmout_check
+      failed_when: tmout_check.rc != 0
+
+    - name: Return message if all checks passed
+      ansible.builtin.debug:
+        msg: "All checks passed successfully!"
+      when:
+        - sudoers_check.rc == 0
+        - ssh_root_login_check.rc == 0
+        - ssh_hardening_check.rc == 0
+        - pam_password_policy_check.rc == 0
+        - sysctl_check.rc == 0
+        - rsyslog_remote_check.rc == 0
+        - auditd_rules_check.rc == 0
+        - fail2ban_status_check.rc == 0
+        - tmout_check.rc == 0
