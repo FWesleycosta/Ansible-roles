@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ansible-roles
+  title: Ansible Roles
+  description: "Roles do Ansible para automatizar a configuração de servidores Linux: pacotes, usuários, serviços e segurança."
+  tags:
+    - ansible
+    - linux
+  annotations:
+    github.com/project-slug: FWesleycosta/Ansible-roles
+spec:
+  type: library
+  lifecycle: production
+  owner: fwesleycosta
+  system: automacao
